@@ -1,22 +1,18 @@
 #include <Arduino.h>
-#include "AsyncTrigger.h"
 #include "ColorSensor.h"
 
 ColorSensor sensor(3, A0);
-AsyncTrigger color(2000);
 
 void setup()
 {
-  Serial.begin(115200);
-  sensor.begin();
-  sensor.setAverageSamples(5);
-  sensor.calibrate();
+    Serial.begin(115200);
+    sensor.begin();
+    sensor.setAverageSamples(5);
+    sensor.calibrate();
 }
 
 void loop()
 {
-  if (color.check())
-  {
     int r, g, b;
     sensor.readRGB(r, g, b);
 
@@ -25,10 +21,11 @@ void loop()
     Serial.print(" ");
     Serial.print(g);
     Serial.print(" ");
-    Serial.print(b);
+    Serial.println(b);
 
     int id = sensor.detectColor();
-    Serial.print("   Detected: ");
+    Serial.print("Detected: ");
     Serial.println(sensor.colorName(id));
-  }
+
+    delay(300);
 }
