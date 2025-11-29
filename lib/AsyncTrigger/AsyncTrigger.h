@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
-class AsyncTrigger
-{
+
+class AsyncTrigger{
 public:
     long period;
     long lastTriggerTime;

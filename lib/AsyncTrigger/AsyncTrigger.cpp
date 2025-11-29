@@ -1,4 +1,5 @@
 #include "AsyncTrigger.h"
+
 AsyncTrigger::AsyncTrigger(long p) : period(p), lastTriggerTime(0) {}
 
 bool AsyncTrigger::check()
