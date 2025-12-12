@@ -1,8 +1,8 @@
 #include <SensorPanel.h>
 
-inline uint16_t abs(uint16_t a) {
-    return a > 0 ? a : a * -1;
-}
+// inline uint16_t abs(uint16_t a) {
+//     return a > 0 ? a : a * -1;
+// }
 
 SensorPanel::SensorPanel(uint8_t *sensorPins) {
     SensorPanel::qtr.setTypeRC();
@@ -13,17 +13,17 @@ bool SensorPanel::calibrate(int seconds) {
     // for (int i = 0; i < seconds * 40; i++) {
     //     SensorPanel::qtr.calibrate();
     // }
-    // uint16_t maxSensorValues[] = {2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500,
-    //                              2500, 2500};
-    // uint16_t minSensorValues[] = {280, 280, 188, 276, 188, 276, 192, 276, 276, 280, 184, 184, 184, 92, 92, 92};
-    // qtr.virtualCalibrate(maxSensorValues, minSensorValues);
+    qtr.calibrate();
+    uint16_t maxSensorValues[] = {2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500,
+                                 2500, 2500};
+    uint16_t minSensorValues[] = {280, 280, 188, 276, 188, 276, 192, 276, 276, 280, 184, 184, 184, 92, 92, 92};
+    qtr.virtualCalibrate(maxSensorValues, minSensorValues);
 
-    SensorPanel::qtr.calibrate();
     return true;
 }
 
 uint16_t SensorPanel::readLine(uint16_t *sensorValues) {
-    return SensorPanel::qtr.readLineWhite(sensorValues);
+    return SensorPanel::qtr.readLineBlack(sensorValues);
 }
 
 void SensorPanel::read() {
@@ -33,8 +33,11 @@ void SensorPanel::read() {
 
     for (int i = 0; i < SensorPanel::SensorCount; i++) {        
         rawReadings[i] = panelReading[i];
-        panelReading[i] = panelReading[i] > 500 ? 0 : 1;
+        panelReading[i] = panelReading[i] > 200 ? 1 : 0;
+        // Serial.print(panelReading[i]);
+        // Serial.print("   ");
     }
+    // Serial.println();
 
     SensorPanel::updatePattern();
 
@@ -58,11 +61,15 @@ void SensorPanel::updatePattern() {
     right = false;
 
     for (int i = 0; i < 1; i++) {
-        if (SensorPanel::panelReading[i] == 1) {
-            right = true;
+        if (SensorPanel::panelReading[i] == 1 ) {
+            if(SensorPanel::panelReading[5] == 1){
+                left = true;
+            }
         }
         if (SensorPanel::panelReading[7 - i] == 1) {
-            left = true;
+            if(SensorPanel::panelReading[2] == 1){
+                right = true;
+            }
         }
     }
 
@@ -78,6 +85,7 @@ void SensorPanel::updatePattern() {
         SensorPanel::pattern = 1;
     }
 
+    //Serial.println(pattern);
     // isEnd = true;
     // for (int i = 0; i < 3; i++) {
     //     isEnd &= (panelReading[i] == 1) && (panelReading[15 - i] == 1);

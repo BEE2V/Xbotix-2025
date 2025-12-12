@@ -1,5 +1,5 @@
-#pragma once
 #include <QTRSensors.h>
+#include <Arduino.h>
 
 class SensorPanel {
 public:

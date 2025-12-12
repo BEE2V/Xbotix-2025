@@ -1,7 +1,8 @@
 #include "Arm.h"
 
 Arm::Arm(uint8_t* stepperPins, int stepsPerRev,
-         uint8_t* dcMotorPins, volatile long* externalEncoderCount) {
+         uint8_t* dcMotorPins, volatile long* externalEncoderCount,
+         uint8_t servoPin) {
   
   // Initialize Stepper 
   stepper = new Stepper(stepsPerRev, stepperPins[0], stepperPins[2], stepperPins[1], stepperPins[3]);
@@ -13,11 +14,12 @@ Arm::Arm(uint8_t* stepperPins, int stepsPerRev,
   
   encoderPos = externalEncoderCount;
 
-  currentGripperSteps = 0;
-  targetGripperSteps = 0;
+  // Initialize Servo
+  pinServo = servoPin;
   
   verticalActive = false;
   gripperActive = false;
+  wristActive = false;
 }
 
 void Arm::begin() {
@@ -27,9 +29,9 @@ void Arm::begin() {
   
   // Set stepper speed (RPM)
   stepper->setSpeed(15); 
+
+  lastWristUpdate = 0;
   
-  // Assume start at Home
-  setHome();
 }
 
 void Arm::setMotorSpeed(int maxSpd, int minSpd) {
@@ -38,12 +40,24 @@ void Arm::setMotorSpeed(int maxSpd, int minSpd) {
 }
 
 void Arm::setHome() {
-  *encoderPos = 0; 
-  currentGripperSteps = maxGripperWidth * stepsPerMM_Grip;
+  currentGripperSteps = minGripperWidth * stepsPerMM_Grip;
   targetGripperSteps = currentGripperSteps;
+
+  *encoderPos = 0;
   targetVerticalPulses = 0;
+
   verticalActive = false;
   gripperActive = false;
+
+  wristServo.attach(pinServo);
+  wristServo.write(homeAngle);
+
+  wristActive = false;
+  
+  currentWristAngle = homeAngle;
+  targetWristAngle = homeAngle;
+
+  runWristTo(topAngle);
 }
 
 // --- Manual Calibration ---
@@ -62,7 +76,7 @@ void Arm::manualGripper(int timeMs) {
 }
 
 void Arm::manualVertical(int timeMs) {
-  int speed = 100; // Fixed manual speed
+  int speed = 200; // Fixed manual speed
   
   if (timeMs > 0) {
     // UP
@@ -92,14 +106,22 @@ void Arm::setGripperWidth(float targetWidth) {
   gripperActive = true;
 }
 
-void Arm::moveToHeight(float targetHeightMM) {
+void Arm::setHeight(float targetHeightMM) {
   targetVerticalPulses = targetHeightMM * pulsesPerMM_Vert;
   verticalActive = true;
 }
 
+void Arm::setWristAngle(float angleDeg) {
+  if (angleDeg < wristAngleMin) angleDeg = wristAngleMin;
+  if (angleDeg > wristAngleMax) angleDeg = wristAngleMax;
+
+  targetWristAngle = angleDeg;
+  wristActive = true;
+}
+
 // --- Blocking Implementation ---
 void Arm::runTo(float heightMM, float widthMM) {
-  moveToHeight(heightMM);
+  setHeight(heightMM);
   setGripperWidth(widthMM);
   while (isMoving()) {
     updateArm();
@@ -107,7 +129,7 @@ void Arm::runTo(float heightMM, float widthMM) {
 }
 
 void Arm::runHeightTo(float heightMM) {
-  moveToHeight(heightMM);
+  setHeight(heightMM);
   while (verticalActive) {
     updateArm();
   }
@@ -120,12 +142,24 @@ void Arm::runGripperTo(float widthMM) {
   }
 }
 
+void Arm::runWristTo(int angleDeg) {
+
+  setWristAngle(angleDeg);
+
+  wristServo.attach(pinServo);
+  while (wristActive) {
+    updateArm();
+  }
+    
+}
+
 // --- Main Update Loop ---
 void Arm::updateArm() {
-  if (!verticalActive && !gripperActive) return;
+  if (!verticalActive && !gripperActive && !wristActive) return;
 
   if (verticalActive) runVerticalLogic();
   if (gripperActive) runGripperLogic();
+  if (wristActive) runWristLogic();
 }
 
 void Arm::runVerticalLogic() {
@@ -140,7 +174,7 @@ void Arm::runVerticalLogic() {
     return;
   }
 
-  int speed = map(abs(error), 0, 50, motorSpeedMin, motorSpeedMax);
+  int speed = map(abs(error), 0, 500, motorSpeedMin, motorSpeedMax);
   speed = constrain(speed, motorSpeedMin, motorSpeedMax);
 
   if (error < 0) { 
@@ -156,11 +190,11 @@ void Arm::runVerticalLogic() {
 
 void Arm::runGripperLogic() {
   if (currentGripperSteps > targetGripperSteps) {
-    stepper->step(1); 
+    stepper->step(-1); 
     currentGripperSteps--; 
   } 
   else if (currentGripperSteps < targetGripperSteps) {
-    stepper->step(-1); 
+    stepper->step(1); 
     currentGripperSteps++;
   } 
   else {
@@ -168,8 +202,26 @@ void Arm::runGripperLogic() {
   }
 }
 
+void Arm::runWristLogic() {
+  if(millis() - lastWristUpdate < angleDelay){
+    return;
+  }
+    
+  if(currentWristAngle < targetWristAngle) {
+    currentWristAngle++;
+    wristServo.write(currentWristAngle);
+  }else if(currentWristAngle > targetWristAngle) {
+    currentWristAngle--;
+    wristServo.write(currentWristAngle);
+  }else{
+    wristActive = false;
+  }
+  lastWristUpdate = millis(); 
+  
+}
+
 bool Arm::isMoving() {
-  return (verticalActive || gripperActive);
+  return (verticalActive || gripperActive || wristActive);
 }
 
 float Arm::getCurrentHeight() {
